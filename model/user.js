@@ -10,6 +10,9 @@ const EmployeeSchema  = new mongoose.Schema({
         type: String,
         required: true
     },
+    ReportingId: {
+        type: String
+    },
     dateOfBirth:{
         type: Date,
         required: true

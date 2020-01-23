@@ -15,20 +15,31 @@ router.post('/employee/create', async (req, res) => {
     const employee = new Employee(req.body);
     try {
         // check the user already registerd or not
-        const checkUser = await Employee.findOne({ 'employeeId': employee.employeeId });
-        if (!checkUser) {
+        const checkEmployee = await Employee.findOne({ 'employeeId': employee.ReportingId });
+        const employeeList = await Employee.find();
+        if (employeeList.length === 0) {
+            req.body.ReportingId = 'owner';
+            const employee = new Employee(req.body);
             const employeeData = await employee.save();
             res.status(200).send({
                 message: 'success',
                 userData: employeeData
 
-            })
+            });
+        } else if (checkEmployee && employee.ReportingId) {
+            const employeeData = await employee.save();
+            res.status(200).send({
+                message: 'success',
+                userData: employeeData
+            });
         } else {
             res.status(400).send({
-                message: 'Employee already registred with this employee Id'
-            });
+                status: 'failure',
+                message: "Reporting Employee is not found in employeeList"
+            })
         }
     } catch (e) {
+        console.log(e);
         res.status(400).send(e);
     }
 });
@@ -42,30 +53,41 @@ router.get('/employee/list', async (req, res) => {
             'users': employeeData
         });
     } catch (error) {
-        res.status(500).send()
+        res.status(400).send()
     }
 });
 
 // route can be used to delete perticular Employee 
 router.delete('/employee/delete', async (req, res) => {
-    console.log(req.query.id);
     try {
         const checkUser = await Employee.findOne({ '_id': mongoose.Types.ObjectId(req.query.id) });
-        if(checkUser) {
-        await Employee.remove({ _id: mongoose.Types.ObjectId(req.query.id) });
-        res.status(200).send({
-            status: 'sucess',
-            message: 'deleted successfully'
-        });
-    } else {
-        res.status(200).send({
-            status: 'sucess',
-            message: 'Employee not found to delete'
-        });
-    }
+        console.log(checkUser);
+        if (checkUser && checkUser.ReportingId !== 'owner') {
+            const reportedEmpoyeeList = await Employee.find({ 'employeeId': checkUser.ReportingId });
+            if (reportedEmpoyeeList.length > 0) {
+                console.log(reportedEmpoyeeList);
+                await Employee.updateMany({ 'ReportingId': checkUser.employeeId },
+                    { $set: { 'ReportingId': reportedEmpoyeeList[0].employeeId } });
+            }
+            await Employee.remove({ _id: mongoose.Types.ObjectId(req.query.id) });
+            res.status(200).send({
+                status: 'sucess',
+                message: 'deleted successfully'
+            });
+        } else if (checkUser!== null && checkUser.ReportingId === 'owner') {
+            res.status(200).send({
+                status: 'success',
+                message: 'Employee have Owner, cannot delete'
+            });
+        } else {
+            res.status(200).send({
+                status: 'success',
+                message: 'Employee not found to delete'
+            });
+        }
     } catch (error) {
         console.log(error);
-        res.status(500).send({
+        res.status(400).send({
             status: 'failure',
             message: 'error while deleting user'
         })
@@ -76,11 +98,15 @@ router.delete('/employee/delete', async (req, res) => {
 router.post('/employee/update', async (req, res) => {
     console.log(req.body);
     try {
-        await Employee.findOneAndUpdate({ _id: mongoose.Types.ObjectId(req.body.id)},
-            { $set: { name: req.body.name,
-                      employeeId: req.body.employeeId,
-                      dateOfBirth: req.body.dateOfBirth,
-                      updatededAt: new Date() } }, 
+        await Employee.findOneAndUpdate({ _id: mongoose.Types.ObjectId(req.body.id) },
+            {
+                $set: {
+                    name: req.body.name,
+                    employeeId: req.body.employeeId,
+                    dateOfBirth: req.body.dateOfBirth,
+                    updatededAt: new Date()
+                }
+            },
             { upsert: true, new: true });
         res.status(200).send(
             {
